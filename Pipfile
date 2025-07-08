@@ -8,6 +8,7 @@ selenium = "*"
 python-dotenv = "*"
 pre-commit = "*"
 pandas = "*"
+webdriver-manager = "*"
 
 [dev-packages]
 
