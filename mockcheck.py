@@ -11,6 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
+DATE_TO_CHECK = "11 July"
 
 def setup_driver():
     """Set up and return a Chrome webdriver with appropriate options."""
@@ -98,23 +99,64 @@ def scrape_data(driver, target_url):
 
             body_text = driver.find_element(By.TAG_NAME, "body").text
 
+            # Extract student name and email
             student_name = get_name_student(driver)
             student_email = get_email_element(body_text)
 
-            permission_flag = True
+            # Extract number of questions answered
+            number_of_questions_answered = 0
 
-            if "has not given you permission" in body_text:
-                print(f"{student_name} has not given permission.")
-                permission_flag = False
+            heatmap_element = driver.find_element(By.CSS_SELECTOR, f'div[data-original-title*="{DATE_TO_CHECK}"]')
+            heatmap_tooltip = heatmap_element.get_attribute("data-original-title")
 
-            student_info.append(
-                {
-                    "Name": student_name,
-                    "Email": student_email,
-                    "Permission given": permission_flag,
-                }
-            )
+            heatmap_match = re.search(r'(\d+)\s+questions\s+completed', heatmap_tooltip)
+            if heatmap_match:
+                number_of_questions_answered = int(heatmap_match.group(1))
+            else:
+                print(f"No questions answered found for {student_name} on {DATE_TO_CHECK}.")
 
+            # Extract the mock link
+            mock_link_element = driver.find_element(By.XPATH,
+                                               '//div[@class="media-title" and contains(text(), "2025 UCAT Mock 19 - Revised")]/ancestor::a')
+            if not mock_link_element:
+                print(f"No mock link found for {student_name}.")
+                student_info.append(
+                    {
+                        "Name": student_name,
+                        "Email": student_email,
+                        "Number of questions answered": number_of_questions_answered,
+                        'Mock': False
+                    }
+                )
+            else:
+                mock_link = mock_link_element.get_attribute("href")
+                if mock_link.startswith('/'):
+                    mock_link = "https://app.medify.co" + mock_link
+
+                driver.get(mock_link)
+
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.TAG_NAME, "body"))
+                )
+
+                rows = driver.find_elements(By.CSS_SELECTOR, "table.table tbody tr")[1:]
+                flat_data = {}
+                for row in rows:
+                    cells = row.find_elements(By.TAG_NAME, "td")
+                    subtest = cells[0].text.strip().replace(" ", "_")  # Safe key names
+                    flat_data[f"{subtest}_Questions"] = int(cells[1].text.strip())
+                    flat_data[f"{subtest}_Correct"] = int(cells[2].text.strip())
+                    flat_data[f"{subtest}_Incorrect"] = int(cells[3].text.strip())
+                    flat_data[f"{subtest}_Score"] = cells[4].text.strip()
+
+                student_info.append(
+                    {
+                        "Name": student_name,
+                        "Email": student_email,
+                        "Number of questions answered": number_of_questions_answered,
+                        'Mock': True
+                    } | flat_data
+                )
         return student_info
 
     except Exception as e:
@@ -151,10 +193,10 @@ def get_email_element(body_text):
 
 def get_credentials():
     """Load credentials from environment variables."""
-    load_dotenv()
+    load_dotenv('.env')
     try:
-        username = os.getenv("USERNAME")
-        password = os.getenv("PASSWORD")
+        username = os.getenv("MEDIFY_USERNAME")
+        password = os.getenv("MEDIFY_PASSWORD")
 
         if not username or not password:
             raise ValueError("Username or password not found in environment variables.")
@@ -169,7 +211,7 @@ def get_credentials():
 def main():
     # Configuration
     LOGIN_URL = "https://app.medify.co/group_manager/sign_in"
-    TARGET_URL = "https://app.medify.co/groups"
+    TARGET_URL = "https://app.medify.co/groups?cohort_year=2025"
     OUTPUT_FILE = "scraped_data.csv"
 
     # Load credentials
