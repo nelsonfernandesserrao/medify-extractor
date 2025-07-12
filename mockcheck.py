@@ -106,18 +106,37 @@ def scrape_data(driver, target_url):
             # Extract number of questions answered
             number_of_questions_answered = 0
 
-            heatmap_element = driver.find_element(By.CSS_SELECTOR, f'div[data-original-title*="{DATE_TO_CHECK}"]')
-            heatmap_tooltip = heatmap_element.get_attribute("data-original-title")
-
-            heatmap_match = re.search(r'(\d+)\s+questions\s+completed', heatmap_tooltip)
-            if heatmap_match:
-                number_of_questions_answered = int(heatmap_match.group(1))
-            else:
-                print(f"No questions answered found for {student_name} on {DATE_TO_CHECK}.")
+            try:
+                heatmap_element = driver.find_element(By.CSS_SELECTOR, f'div[data-original-title*="{DATE_TO_CHECK}"]')
+                heatmap_tooltip = heatmap_element.get_attribute("data-original-title")
+                heatmap_match = re.search(r'(\d+)\s+questions\s+completed', heatmap_tooltip)
+                if heatmap_match:
+                    number_of_questions_answered = int(heatmap_match.group(1))
+                else:
+                    print(f"No questions answered found for {student_name} on {DATE_TO_CHECK}.")
+                    permissions = False
+                    continue
+            except Exception as e:
+                print(f"Could not find heatmap element for {student_name} on {DATE_TO_CHECK}: {str(e)}")
+                student_info.append(
+                    {
+                        "Name": student_name,
+                        "Email": student_email,
+                        "Number of questions answered": 'No permissions',
+                        'Mock': False
+                    }
+                )
+                continue
 
             # Extract the mock link
-            mock_link_element = driver.find_element(By.XPATH,
-                                               '//div[@class="media-title" and contains(text(), "2025 UCAT Mock 19 - Revised")]/ancestor::a')
+            mock_link_elements = driver.find_elements(By.XPATH,
+                                                      '//div[@class="media-title" and contains(text(), "2025 UCAT Mock 19 - Revised")]/ancestor::a')
+            if not mock_link_elements:
+                print(f"No mock link found for {student_name}.")
+                mock_link_element = None
+            else:
+                mock_link_element = mock_link_elements[0]
+
             if not mock_link_element:
                 print(f"No mock link found for {student_name}.")
                 student_info.append(
