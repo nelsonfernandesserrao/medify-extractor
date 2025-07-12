@@ -12,6 +12,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 DATE_TO_CHECK = "11 July"
+MOCK_TITLE = "2025 UCAT Mock 19 - Revised"
 
 def setup_driver():
     """Set up and return a Chrome webdriver with appropriate options."""
@@ -130,7 +131,7 @@ def scrape_data(driver, target_url):
 
             # Extract the mock link
             mock_link_elements = driver.find_elements(By.XPATH,
-                                                      '//div[@class="media-title" and contains(text(), "2025 UCAT Mock 19 - Revised")]/ancestor::a')
+                                                      f'//div[@class="media-title" and contains(text(), "{MOCK_TITLE}")]/ancestor::a')
             if not mock_link_elements:
                 print(f"No mock link found for {student_name}.")
                 mock_link_element = None
